@@ -12,20 +12,50 @@ Allows multiple nodes to be all scheduling recurring jobs and relying on Service
 var scheduler = new AzureServiceBusScheduler(
         "Endpoint=sb://mybus.servicebus.windows.net/;SharedAccessKeyName=mykey;SharedAccessKey=mysecret",
         "myqueue");
-			
+
 // Trigger every 10 minutes. If now it's UTC 1:03am then next execution will be UTC 1:10am.
-Func<DateTime> calcNextUtcExecution = () => {
-        var nowUtc = DateTime.UtcNow;
-        var nextUtc = new DateTime(nowUtc.Year, nowUtc.Month, nowUtc.Day, nowUtc.Hour, nowUtc.Minute - (nowUtc.Minute%10), 0, DateTimeKind.Utc).AddMinutes(10);
-        return nextUtc;
-    };
+Func<DateTime, DateTime?> calcNextUtcExecution = (DateTime nowUtc) => {
+    var nowUtc = DateTime.UtcNow;
+    var nextUtc = new DateTime(nowUtc.Year, nowUtc.Month, nowUtc.Day, nowUtc.Hour, nowUtc.Minute - (nowUtc.Minute%10), 0, DateTimeKind.Utc).AddMinutes(10);
+    return nextUtc;
+};
 
 await scheduler.ScheduleRecurrentJobAsync("MyJob", calcNextUtcExecution, MyJob);
 
-private void MyJob()
+private void MyJob(string instanceId)
 {
   //...
 }
+
+scheduler.Start();
+```
+
+More elaborated scheduler w/ custom MyInstanceInfo:
+
+```cs
+// Trigger every Sunday 11pm
+Func<DateTime, DateTime?> everyMondayNight = (DateTime nowUtc) => {
+    // Remove from nowUtc anything under seconds precision (becaues below we work with seconds)
+    long tickPrecision = TimeSpan.TicksPerSecond;
+    nowUtc = new DateTime((long)nowUtc.Ticks / tickPrecision * tickPrecision, nowUtc.Kind);
+
+    // baseDate is any date in the past just used for calculating next occurrences
+    var baseDate = new DateTime(2022, 01, 02, 23, 0, 0); // this is a random Sunday 11pm in the past
+    var interval = TimeSpan.FromDays(7);
+    var previousUtc = nowUtc - TimeSpan.FromSeconds((nowUtc - baseDate).TotalSeconds % interval.TotalSeconds);
+    var nextUtc = previousUtc.Add(interval);
+    return nextUtc;
+};
+
+var instanceInfo = new MyInstanceInfo(){ InstanceId=Guid.NewGuid.ToString(), etc };
+var scheduler = new AzureServiceBusScheduler(connectionString, queueName, instanceInfo);
+await scheduler.ScheduleRecurrentJobAsync("MyWeeklyJob", calcNextUtcExecution, MyWeeklyJob);
+private void MyWeeklyJob(MyInstanceInfo instanceInfo)
+{
+  //Debug.WriteLine("{instanceInfo.InstanceId} is starting MyWeeklyJob...");
+}
+
+scheduler.Start();
 ```
 
 ## FAQ
@@ -60,7 +90,7 @@ broadcaster.RegisterCallback("NewNodeIsUp", OnNewNodeUp);
 broadcaster.Start();
 broadcaster.SendBroadcast("NewNodeIsUp");
 
-private void OnNewNodeUp()
+private void OnNewNodeUp(string instanceId)
 {
   // do something
 }

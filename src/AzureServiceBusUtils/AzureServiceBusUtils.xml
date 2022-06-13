@@ -4,18 +4,19 @@
         <name>AzureServiceBusUtils</name>
     </assembly>
     <members>
-        <member name="T:AzureServiceBusUtils.AzureServiceBusBroadcaster">
+        <member name="T:AzureServiceBusUtils.AzureServiceBusBroadcaster`1">
             <summary>
-            Multiple nodes can all connect to a Service Bus topic, each one will create its own subscription and then they can all communicate with other nodes using Broadcast messages (pub-sub).
-            Examples: When new nodes start in a blue-green deployment they can notify all other nodes and old nodes can check if they should still be up or if they should get inactive
+            Allows multiple nodes to communicate with each other through broadcast messages using a Service Bus Topic (each node will create it's own Subscription).
+            Through broadcast messages (and callbacks registered for each possible message) the nodes can communicate and orchestrate their actions. Some examples:
+            - In a Blue/Green deployment when nodes from the new deployment start up they can notify all other nodes so that old nodes can verify that they should become inactive.
+            - When we scale up or scale down (add new nodes or remove nodes) all active nodes can recalculate some partitioning function to distribute their loads
+            - Periodially nodes can send a heartbeat so that other nodes can trigger an alert if we run short of active nodes
             </summary>
         </member>
-        <member name="T:AzureServiceBusUtils.AzureServiceBusScheduler">
+        <member name="T:AzureServiceBusUtils.AzureServiceBusScheduler`1">
             <summary>
-            Using Service Bus Queues (with Message Duplication detection enabled) we can use the Queue as a simple scheduler.
-            In a multinode cluster all nodes can define the same scheduled jobs, they will all enqueue the execution of jobs as a scheduled message 
-            which will only be delivered when it's time for the job to run,
-            and only one node will get the message and trigger the job.
+            Allows multiple nodes to be all scheduling recurring jobs and relying on Service Bus Queues to trigger the job at the right time and to enforce that only one of the nodes will be running the job.
+            The Queue must have Message Duplication detection enabled.
             </summary>
         </member>
     </members>
