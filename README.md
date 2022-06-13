@@ -16,6 +16,49 @@ Usage Examples:
 
 # Examples
 
+Scheduler:
+
+```cs
+var scheduler = new AzureServiceBusScheduler(
+        "Endpoint=sb://mybus.servicebus.windows.net/;SharedAccessKeyName=mykey;SharedAccessKey=mysecret",
+        "myqueue");
+			
+// Trigger every 10 minutes. If now it's UTC 1:03am then next execution will be UTC 1:10am.
+Func<DateTime> calcNextUtcExecution = () => {
+        var nowUtc = DateTime.UtcNow;
+        var nextUtc = new DateTime(nowUtc.Year, nowUtc.Month, nowUtc.Day, nowUtc.Hour, nowUtc.Minute - (nowUtc.Minute%10), 0, DateTimeKind.Utc).AddMinutes(10);
+        return nextUtc;
+    };
+
+await scheduler.ScheduleRecurrentJobAsync("MyJob", calcNextUtcExecution, MyJob);
+
+private void MyJob()
+{
+  //...
+}
+```
+
+
+Broadcaster:
+
+```cs
+var broadcaster = new AzureServiceBusBroadcaster(
+        "Endpoint=sb://mybus.servicebus.windows.net/;SharedAccessKeyName=mykey;SharedAccessKey=mysecret",
+        "mytopic");
+			
+// Trigger every 10 minutes. If now it's UTC 1:03am then next execution will be UTC 1:10am.
+broadcaster.RegisterCallback("NewNodeIsUp", OnNewNodeUp);
+broadcaster.Start();
+broadcaster.SendBroadcast("NewNodeIsUp");
+
+private void OnNewNodeUp()
+{
+  // do something
+}
+```
+
+
+
 
 ## License
 MIT License
