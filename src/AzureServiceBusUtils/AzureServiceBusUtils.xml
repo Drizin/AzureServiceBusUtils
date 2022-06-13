@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>AzureServiceBusUtils</name>
+    </assembly>
+    <members>
+        <member name="T:AzureServiceBusUtils.AzureServiceBusBroadcaster">
+            <summary>
+            Multiple nodes can all connect to a Service Bus topic, each one will create its own subscription and then they can all communicate with other nodes using Broadcast messages (pub-sub).
+            Examples: When new nodes start in a blue-green deployment they can notify all other nodes and old nodes can check if they should still be up or if they should get inactive
+            </summary>
+        </member>
+        <member name="T:AzureServiceBusUtils.AzureServiceBusScheduler">
+            <summary>
+            Using Service Bus Queues (with Message Duplication detection enabled) we can use the Queue as a simple scheduler.
+            In a multinode cluster all nodes can define the same scheduled jobs, they will all enqueue the execution of jobs as a scheduled message 
+            which will only be delivered when it's time for the job to run,
+            and only one node will get the message and trigger the job.
+            </summary>
+        </member>
+    </members>
+</doc>
