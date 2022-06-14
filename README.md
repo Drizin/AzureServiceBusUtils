@@ -35,7 +35,7 @@ More elaborated scheduler w/ custom MyInstanceInfo:
 ```cs
 // Trigger every Sunday 11pm
 Func<DateTime, DateTime?> everyMondayNight = (DateTime nowUtc) => {
-    // Remove from nowUtc anything under seconds precision (becaues below we work with seconds)
+    // Remove from nowUtc anything smaller than a second (becaues below we work with seconds)
     long tickPrecision = TimeSpan.TicksPerSecond;
     nowUtc = new DateTime((long)nowUtc.Ticks / tickPrecision * tickPrecision, nowUtc.Kind);
 

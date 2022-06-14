@@ -22,10 +22,11 @@ namespace AzureServiceBusUtils
         private readonly TInstanceInfo _instanceInfo;
         private readonly TopicClient _topicClient;
         private readonly ManagementClient _managementClient;
-        private readonly Dictionary<string, Action<TInstanceInfo>> _jobHandlers = new Dictionary<string, Action<TInstanceInfo>>();
+        private readonly Dictionary<string, Action<TInstanceInfo, Message>> _jobHandlers = new Dictionary<string, Action<TInstanceInfo, Message>>();
         private string _subscriptionName = null;
         private SubscriptionClient _subscriptionClient;
 
+        /// <inheritdoc />
         public AzureServiceBusBroadcaster(string connectionString, string topicPath, TInstanceInfo instanceInfo)
         {
             _instanceInfo = instanceInfo;
@@ -35,11 +36,20 @@ namespace AzureServiceBusUtils
             _managementClient = new ManagementClient(_connectionString);
         }
 
-        public void RegisterCallback(string eventId, Action<TInstanceInfo> action)
+        /// <summary>
+        /// For a given EventId this registers a callback function
+        /// </summary>
+        /// <param name="eventId"></param>
+        /// <param name="action"></param>
+        public void RegisterCallback(string eventId, Action<TInstanceInfo, Message> action)
         {
             _jobHandlers[eventId] = action;
         }
 
+        /// <summary>
+        /// Sends a broadcast message to all registered instances which may handle the event if they have a registered callback
+        /// </summary>
+        /// <param name="eventId"></param>
         public void SendBroadcast(string eventId)
         {
             var msg = new Message()
@@ -51,10 +61,14 @@ namespace AzureServiceBusUtils
             _topicClient.SendAsync(msg);
         }
 
+        /// <summary>
+        /// Starts a background task that will listen to the broadcast messages topic and will handle those events by invoking the registered callbacks
+        /// </summary>
         public async Task StartAsync()
         {
             await CreateNewSubscriptionAsync(); // RegisterMessageHandler will automatically start a new thread to receive/handle the messages
         }
+
         private async Task CreateNewSubscriptionAsync()
         {
             if (_subscriptionClient != null)
@@ -77,33 +91,41 @@ namespace AzureServiceBusUtils
 
             if (message.UserProperties.ContainsKey("EventId") && _jobHandlers.ContainsKey((string)message.UserProperties["EventId"]))
             {
-                // Complete the message so that it is not received again. This can be done only if the subscriptionClient is opened in ReceiveMode.PeekLock mode.
                 try
                 {
+                    // Complete message (so it's not sent again to this or other instance) before starting the callback,
+                    // because by default (unless renewed) locks will expire shortly.
                     await _subscriptionClient.CompleteAsync(message.SystemProperties.LockToken);
                 }
-                catch
+                catch (MessageLockLostException)
+                {
+                    return; // if the lock is not valid maybe this job was reassigned to and handled by other instance.
+                }
+                catch (Exception ex) when (ex.GetBaseException() is MessageLockLostException)
                 {
                     return; // if the lock is not valid maybe this job was reassigned to and handled by other instance.
                 }
 
-                _jobHandlers[(string)message.UserProperties["EventId"]].Invoke(_instanceInfo);
+                _jobHandlers[(string)message.UserProperties["EventId"]].Invoke(_instanceInfo, message);
             }
         }
         private Task OnExceptionAsync(ExceptionReceivedEventArgs args)
         {
-            System.Diagnostics.Debug.WriteLine("Exception = " + args.Exception);
+            System.Diagnostics.Debug.WriteLine("Exception = " + args.Exception.Message);
             return Task.CompletedTask;
         }
 
 
     }
-    internal class AzureServiceBusBroadcaster : AzureServiceBusBroadcaster<string>
+
+    /// <inheritdoc />
+    public class AzureServiceBusBroadcaster : AzureServiceBusBroadcaster<string>
     {
+        /// <inheritdoc />
         public AzureServiceBusBroadcaster(string connectionString, string topicPath, string instanceId = null)
-            : base(connectionString, topicPath, instanceId ?? Guid.NewGuid().ToString() )
+            : base(connectionString, topicPath, instanceId ?? Guid.NewGuid().ToString())
         {
         }
 
-    }    
+    }
 }

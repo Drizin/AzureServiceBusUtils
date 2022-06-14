@@ -13,11 +13,61 @@
             - Periodially nodes can send a heartbeat so that other nodes can trigger an alert if we run short of active nodes
             </summary>
         </member>
+        <member name="M:AzureServiceBusUtils.AzureServiceBusBroadcaster`1.#ctor(System.String,System.String,`0)">
+            <inheritdoc />
+        </member>
+        <member name="M:AzureServiceBusUtils.AzureServiceBusBroadcaster`1.RegisterCallback(System.String,System.Action{`0,Microsoft.Azure.ServiceBus.Message})">
+            <summary>
+            For a given EventId this registers a callback function
+            </summary>
+            <param name="eventId"></param>
+            <param name="action"></param>
+        </member>
+        <member name="M:AzureServiceBusUtils.AzureServiceBusBroadcaster`1.SendBroadcast(System.String)">
+            <summary>
+            Sends a broadcast message to all registered instances which may handle the event if they have a registered callback
+            </summary>
+            <param name="eventId"></param>
+        </member>
+        <member name="M:AzureServiceBusUtils.AzureServiceBusBroadcaster`1.StartAsync">
+            <summary>
+            Starts a background task that will listen to the broadcast messages topic and will handle those events by invoking the registered callbacks
+            </summary>
+        </member>
+        <member name="T:AzureServiceBusUtils.AzureServiceBusBroadcaster">
+            <inheritdoc />
+        </member>
+        <member name="M:AzureServiceBusUtils.AzureServiceBusBroadcaster.#ctor(System.String,System.String,System.String)">
+            <inheritdoc />
+        </member>
         <member name="T:AzureServiceBusUtils.AzureServiceBusScheduler`1">
             <summary>
             Allows multiple nodes to be all scheduling recurring jobs and relying on Service Bus Queues to trigger the job at the right time and to enforce that only one of the nodes will be running the job.
             The Queue must have Message Duplication detection enabled.
             </summary>
+        </member>
+        <member name="M:AzureServiceBusUtils.AzureServiceBusScheduler`1.#ctor(System.String,System.String,`0)">
+            <inheritdoc />
+        </member>
+        <member name="M:AzureServiceBusUtils.AzureServiceBusScheduler`1.Start">
+            <summary>
+            Starts a background task that will listen to the scheduled-jobs queue and will handle those jobs (as they are released by the queue) by invoking the registered callbacks
+            </summary>
+        </member>
+        <member name="M:AzureServiceBusUtils.AzureServiceBusScheduler`1.ScheduleRecurrentJobAsync(System.String,System.Func{System.DateTime,System.Nullable{System.DateTime}},System.Action{`0,Microsoft.Azure.ServiceBus.Message})">
+            <summary>
+            For a given JobId this registers a callback function, and defines a schedule Func that will be used to calculate the next executions of the job.
+            </summary>
+            <param name="jobId"></param>
+            <param name="getNextUtcExecution"></param>
+            <param name="action"></param>
+            <returns></returns>
+        </member>
+        <member name="T:AzureServiceBusUtils.AzureServiceBusScheduler">
+            <inheritdoc />
+        </member>
+        <member name="M:AzureServiceBusUtils.AzureServiceBusScheduler.#ctor(System.String,System.String,System.String)">
+            <inheritdoc />
         </member>
     </members>
 </doc>

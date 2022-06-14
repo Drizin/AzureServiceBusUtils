@@ -20,8 +20,9 @@ namespace AzureServiceBusUtils
         private readonly Timer _scheduleNextExecutionsTimer;
 
         private readonly List<JobDefinition> _jobDefinitions = new List<JobDefinition>(); // In the future we could persist the JobDefinitions in some storage. Currently in-memory.
-        private readonly Dictionary<string, Action<TInstanceInfo>> _jobHandlers = new Dictionary<string, Action<TInstanceInfo>>();
+        private readonly Dictionary<string, Action<TInstanceInfo, Message>> _jobHandlers = new Dictionary<string, Action<TInstanceInfo, Message>>();
 
+        /// <inheritdoc />
         public AzureServiceBusScheduler(string connectionString, string controlChannelQueueName, TInstanceInfo instanceInfo)
         {
             _instanceInfo = instanceInfo;
@@ -31,17 +32,26 @@ namespace AzureServiceBusUtils
             _scheduleNextExecutionsTimer = new Timer(ScheduleNextJobs, null, TimeSpan.Zero, TimeSpan.FromMinutes(5));
         }
 
+        /// <summary>
+        /// Starts a background task that will listen to the scheduled-jobs queue and will handle those jobs (as they are released by the queue) by invoking the registered callbacks
+        /// </summary>
         public void Start() => Task.Run(RunAsync);
 
         private class JobDefinition
         {
             public string JobId;
-            //public string CronExpression;
             public Func<DateTime, DateTime?> GetNextUtcExecution;
             public DateTime? LastScheduledExecution; // Last execution time (UTC) that THIS instance scheduled for this job
         }
 
-        public async Task ScheduleRecurrentJobAsync(string jobId, /*string cronExpression, */ Func<DateTime, DateTime?> getNextUtcExecution, Action<TInstanceInfo> action)
+        /// <summary>
+        /// For a given JobId this registers a callback function, and defines a schedule Func that will be used to calculate the next executions of the job.
+        /// </summary>
+        /// <param name="jobId"></param>
+        /// <param name="getNextUtcExecution"></param>
+        /// <param name="action"></param>
+        /// <returns></returns>
+        public async Task ScheduleRecurrentJobAsync(string jobId, Func<DateTime, DateTime?> getNextUtcExecution, Action<TInstanceInfo, Message> action)
         {
             _jobHandlers[jobId] = action;
             var jobDefinition = new JobDefinition() { JobId = jobId, GetNextUtcExecution = getNextUtcExecution };
@@ -99,19 +109,36 @@ namespace AzureServiceBusUtils
                 }
                 if (message.UserProperties.ContainsKey("JobId") && _jobHandlers.ContainsKey((string)message.UserProperties["JobId"]))
                 {
-                    _jobHandlers[(string)message.UserProperties["JobId"]].Invoke(_instanceInfo);
+                    _ = Task.Run(async () => await HandleAsync(message));
                 }
-                try
-                {
-                    await _schedulerQueueReceiver.CompleteAsync(message.SystemProperties.LockToken);
-                }
-                catch { /*ignore*/ }
             }
+        }
+        private async Task HandleAsync(Message message)
+        {
+            try
+            {
+                // Complete message (so it's not sent again to this or other instance) before starting the callback,
+                // because by default (unless renewed) locks will expire shortly.
+                await _schedulerQueueReceiver.CompleteAsync(message.SystemProperties.LockToken);
+            }
+            catch (MessageLockLostException)
+            {
+                return; // if the lock is not valid maybe this job was reassigned to and handled by other instance.
+            }
+            catch (Exception ex) when (ex.GetBaseException() is MessageLockLostException)
+            {
+                return; // if the lock is not valid maybe this job was reassigned to and handled by other instance.
+            }
+
+            _jobHandlers[(string)message.UserProperties["JobId"]].Invoke(_instanceInfo, message);
         }
 
     }
-    internal class AzureServiceBusScheduler : AzureServiceBusScheduler<string>
+
+    /// <inheritdoc />
+    public class AzureServiceBusScheduler : AzureServiceBusScheduler<string>
     {
+        /// <inheritdoc />
         public AzureServiceBusScheduler(string connectionString, string controlChannelQueueName, string instanceId = null)
             : base(connectionString, controlChannelQueueName, instanceId ?? Guid.NewGuid().ToString())
         {
