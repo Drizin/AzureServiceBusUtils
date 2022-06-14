@@ -58,17 +58,6 @@ private void MyWeeklyJob(MyInstanceInfo instanceInfo)
 scheduler.Start();
 ```
 
-## FAQ
-
-### Is ServiceBus Scheduler like Hangfire?
-
-[Hangfire](https://github.com/HangfireIO/Hangfire) is the most popular and comprehensive dotnet library for recurring jobs. 
-It uses persistent storage (SQL Server or Redis) to store the jobs definitions, and it supports [multiple instances](https://docs.hangfire.io/en/latest/background-processing/running-multiple-server-instances.html) of a server so that the nodes will automatically coordinate (through distributed locks) in such a way that only one instance starts the job. 
-
-However in microservices architecture it's frequent that the only resources used by microservices are stateless services and a Service Bus. Our ServiceBus Scheduler is a lightweight alternative for this scenario, where the recurrent jobs can be defined directly inside the service (in-memory), and a simple timer is responsible for scheduling the next execution. Azure Service Bus is used both to ignore duplicate schedules (since all nodes are identical and all will be scheduling the executions) and it's also used to deliver the message (the execution) at the scheduled time, to a random node.
-
-
-
 # Azure ServiceBus Broadcaster
 
 Allows multiple nodes to communicate with each other through broadcast messages using a Service Bus Topic. Nodes can register callbacks for the different possible messages that they receive from other nodes so that they can orchestrate their actions.
@@ -77,7 +66,6 @@ Usage Examples:
 - In a Blue/Green deployment when nodes from the new deployment start up they can notify all other nodes so that old nodes can verify that they should become inactive.
  - When we scale up or scale down (add new nodes or remove nodes) all active nodes can recalculate some partitioning function to distribute their loads
  - Periodially nodes can send a heartbeat so that other nodes can trigger an alert if we run short of active nodes
-
 
 ## Example
 
@@ -95,6 +83,20 @@ private void OnNewNodeUp(string instanceId)
   // do something
 }
 ```
+
+# FAQ
+
+## Is ServiceBus Scheduler like Hangfire?
+
+[Hangfire](https://github.com/HangfireIO/Hangfire) is the most popular and comprehensive dotnet library for recurring jobs. 
+It uses persistent storage (SQL Server or Redis) to store the jobs definitions, and it supports [multiple instances](https://docs.hangfire.io/en/latest/background-processing/running-multiple-server-instances.html) of a server so that the nodes will automatically coordinate (through distributed locks) in such a way that only one instance starts the job. 
+
+However in microservices architecture it's frequent that the only resources used by microservices are stateless services and a Service Bus. Our ServiceBus Scheduler is a lightweight alternative for this scenario, where the recurrent jobs can be defined directly inside the service (in-memory), and a simple timer is responsible for scheduling the next execution. Azure Service Bus is used both to ignore duplicate schedules (since all nodes are identical and all will be scheduling the executions) and it's also used to deliver the message (the execution) at the scheduled time, to a random node.
+
+## Why not Azure Functions?
+
+Azure Functions can [run on a schedule](https://docs.microsoft.com/en-us/azure/azure-functions/functions-create-scheduled-function) and you can program them to call a public endpoint. Since Azure Function runs outside of your service you'll probably want to use some form of authentication, and you'll have to keep Azure Function in synch with your APIs both regarding auth credentials and regarding the endpoint urls. **By running the scheduled jobs right from inside your service (InProc) your infrastructure and devops are simpler and less prone to human errors.** On top of that you don't have to expose public endpoints at all.  
+_"Simple things should be simple, complex things should be possible."_ (Alan Kay)
 
 
 # License
